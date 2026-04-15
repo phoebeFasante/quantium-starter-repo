@@ -4,118 +4,16 @@ import plotly.express as px
 
 # Load cleaned data
 df = pd.read_csv("formatted_sales_data.csv")
+
+# Clean Sales column (IMPORTANT in case $ is still there)
+df["Sales"] = df["Sales"].replace(r"[\$,]", "", regex=True).astype(float)
+
 df["Date"] = pd.to_datetime(df["Date"])
 df = df.sort_values("Date")
 
 app = Dash(__name__)
 
-def build_figure(region_value: str):
-    filtered_df = df.copy()
-
-    if region_value != "all":
-        filtered_df = filtered_df[filtered_df["Region"].str.lower() == region_value]
-
-    daily_sales = (
-        filtered_df.groupby("Date", as_index=False)["Sales"]
-        .sum()
-        .sort_values("Date")
-    )
-
-    fig = px.line(
-        daily_sales,
-        x="Date",
-        y="Sales",
-        markers=True,
-    )
-
-    fig.update_layout(
-        title=f"Pink Morsel Sales Over Time ({region_value.title()})" if region_value != "all" else "Pink Morsel Sales Over Time (All Regions)",
-        xaxis_title="Date",
-        yaxis_title="Sales",
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        font=dict(family="Arial, sans-serif", size=14, color="#1f2937"),
-        title_font=dict(size=24),
-        margin=dict(l=40, r=40, t=80, b=40),
-    )
-
-    fig.update_traces(line=dict(width=3), marker=dict(size=6))
-
-    fig.update_xaxes(showgrid=False)
-    fig.update_yaxes(showgrid=True, gridcolor="#e5e7eb")
-
-    fig.add_vline(
-        x="2021-01-15",
-        line_dash="dash",
-        line_color="#ef4444",
-        annotation_text="Price increase",
-        annotation_position="top left",
-    )
-
-    return fig
-
-
-app.layout = html.Div(
-    style=styles["page"],
-    children=[
-        html.Div(
-            style=styles["container"],
-            children=[
-                html.H1(
-                    "Soul Foods Pink Morsel Sales Dashboard",
-                    style=styles["title"],
-                ),
-                html.P(
-                    "Explore total Pink Morsel sales over time and compare performance across regions.",
-                    style=styles["subtitle"],
-                ),
-
-                html.Div(
-                    style=styles["controlsCard"],
-                    children=[
-                        html.Label("Filter by region", style=styles["label"]),
-                        dcc.RadioItems(
-                            id="region-filter",
-                            options=[
-                                {"label": "All", "value": "all"},
-                                {"label": "North", "value": "north"},
-                                {"label": "East", "value": "east"},
-                                {"label": "South", "value": "south"},
-                                {"label": "West", "value": "west"},
-                            ],
-                            value="all",
-                            inline=True,
-                            style=styles["radioGroup"],
-                            labelStyle=styles["radioLabel"],
-                            inputStyle=styles["radioInput"],
-                        ),
-                    ],
-                ),
-
-                html.Div(
-                    style=styles["chartCard"],
-                    children=[
-                        dcc.Graph(
-                            id="sales-chart",
-                            figure=build_figure("all"),
-                            config={"displayModeBar": False},
-                        )
-                    ],
-                ),
-            ],
-        )
-    ],
-)
-
-
-@app.callback(
-    Output("sales-chart", "figure"),
-    Input("region-filter", "value"),
-)
-def update_chart(selected_region):
-    return build_figure(selected_region)
-
-
+# ✅ Styles FIRST (so no NameError)
 styles = {
     "page": {
         "minHeight": "100vh",
@@ -180,6 +78,127 @@ styles = {
         "boxShadow": "0 10px 30px rgba(0, 0, 0, 0.08)",
     },
 }
+
+
+# ✅ Build chart
+def build_figure(region_value: str):
+    filtered_df = df.copy()
+
+    if region_value != "all":
+        filtered_df = filtered_df[filtered_df["Region"].str.lower() == region_value]
+
+    daily_sales = (
+        filtered_df.groupby("Date", as_index=False)["Sales"]
+        .sum()
+        .sort_values("Date")
+    )
+
+    fig = px.line(
+        daily_sales,
+        x="Date",
+        y="Sales",
+        markers=True,
+    )
+
+    fig.update_layout(
+        title=f"Pink Morsel Sales Over Time ({region_value.title()})"
+        if region_value != "all"
+        else "Pink Morsel Sales Over Time (All Regions)",
+        xaxis_title="Date",
+        yaxis_title="Sales",
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font=dict(family="Arial, sans-serif", size=14, color="#1f2937"),
+        title_font=dict(size=24),
+        margin=dict(l=40, r=40, t=80, b=40),
+    )
+
+    fig.update_traces(line=dict(width=3), marker=dict(size=6))
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=True, gridcolor="#e5e7eb")
+
+    # ✅ FIXED vertical line
+    price_date = pd.Timestamp("2021-01-15")
+
+    fig.add_vline(
+        x=price_date,
+        line_dash="dash",
+        line_color="#ef4444",
+    )
+
+    fig.add_annotation(
+        x=price_date,
+        y=daily_sales["Sales"].max(),
+        text="Price increase",
+        showarrow=True,
+        arrowhead=1,
+        ax=40,
+        ay=-40,
+        font=dict(color="#ef4444"),
+    )
+
+    return fig
+
+
+# ✅ Layout
+app.layout = html.Div(
+    style=styles["page"],
+    children=[
+        html.Div(
+            style=styles["container"],
+            children=[
+                html.H1(
+                    "Soul Foods Pink Morsel Sales Dashboard",
+                    style=styles["title"],
+                ),
+                html.P(
+                    "Explore total Pink Morsel sales over time and compare performance across regions.",
+                    style=styles["subtitle"],
+                ),
+                html.Div(
+                    style=styles["controlsCard"],
+                    children=[
+                        html.Label("Filter by region", style=styles["label"]),
+                        dcc.RadioItems(
+                            id="region-filter",
+                            options=[
+                                {"label": "All", "value": "all"},
+                                {"label": "North", "value": "north"},
+                                {"label": "East", "value": "east"},
+                                {"label": "South", "value": "south"},
+                                {"label": "West", "value": "west"},
+                            ],
+                            value="all",
+                            inline=True,
+                            style=styles["radioGroup"],
+                            labelStyle=styles["radioLabel"],
+                            inputStyle=styles["radioInput"],
+                        ),
+                    ],
+                ),
+                html.Div(
+                    style=styles["chartCard"],
+                    children=[
+                        dcc.Graph(
+                            id="sales-chart",
+                            figure=build_figure("all"),
+                            config={"displayModeBar": False},
+                        )
+                    ],
+                ),
+            ],
+        )
+    ],
+)
+
+
+# ✅ Callback
+@app.callback(
+    Output("sales-chart", "figure"),
+    Input("region-filter", "value"),
+)
+def update_chart(selected_region):
+    return build_figure(selected_region)
 
 
 if __name__ == "__main__":
